@@ -7,6 +7,7 @@
     "@testing-library/react": "^12.1.2",
     "@testing-library/user-event": "^13.5.0",
     "aos": "^2.3.4",
+    "axios": "^1.5.1",
     "bignumber.js": "^9.1.2",
     "everscale-inpage-provider": "^0.3.62",
     "everscale-standalone-client": "^2.1.23",

@@ -140,7 +140,14 @@ const Wrapper = styled.div`
         justify-content: center;
         align-items: center;
     }
-    .generate button {
+    .generate div {
+        position: relative;
+        cursor: pointer;
+        &:hover {
+            background: #eee;
+        }
+    }
+    .generate div .btn-main {
         background: none;
         outline: none;
         font-size: 18px;
@@ -148,10 +155,15 @@ const Wrapper = styled.div`
         text-align: center;
         border: 1px solid black;
         padding: 20px 10px;
+    }
+    .generate div #upload_file {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
         cursor: pointer;
-        &:hover {
-            background: #eee;
-        }
     }
     .mint_step {
         text-align: center;

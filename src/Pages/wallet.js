@@ -1,75 +1,193 @@
 import React, { useEffect, useState } from "react";
-import Wrapper from "./wallet.styled";
-import { Icon } from "@iconify/react";
 import { Link } from "react-router-dom";
+import { VenomConnect } from "venom-connect";
+import { NavHashLink } from "react-router-hash-link";
+import { Address, ProviderRpcClient } from "everscale-inpage-provider";
+import { Icon } from "@iconify/react";
+import Wrapper from "./wallet.styled";
 import before from "../images/filter.png";
 import NoProfile from "../images/profile.png";
-import { NavHashLink } from "react-router-hash-link";
-import { VenomConnect } from "venom-connect";
-import { Address, ProviderRpcClient } from "everscale-inpage-provider";
 import { styledAddress } from "../utils";
+import collectionAbi from "../Contract/Collection.abi.json";
+import { getCollectionItems } from "../utils";
+import axios from "axios";
+
+// Our implemented util
+import config from "../config/config.json";
+import { toNano } from "../utils";
 
 function Wallet(props) {
     const { venomConnect } = props;
 
+    const [loading, setLoading] = useState(false);
     const [venomProvider, setVenomProvider] = useState();
     const [standaloneProvider, setStandAloneProvider] = useState();
-    const [address, setAddress] = useState("");
+    const [address, setAddress] = useState();
+    const [collectionItems, setCollectionItem] = useState([]);
+    const [selectedFile, setSeletedFile] = useState(null);
 
     useEffect(() => {
-        // connect event handler
         var off = null;
-
         if (venomConnect) {
             off = venomConnect.on("connect", onConnect);
             initStandalone();
             checkAuth(venomConnect);
         }
-
         return () => {
-            if (off) {
-                off();
-            }
+            if (off) off();
         };
     }, [venomConnect]);
 
-    // This method allows us to gen a wallet address from inpage provider
     const getAddress = async (provider) => {
         const providerState = await provider.getProviderState();
         return providerState.permissions.accountInteraction.address.toString();
     };
 
-    // Any interaction with venom-wallet (address fetching is included) needs to be authentificated
     const checkAuth = async (_venomConnect) => {
         const auth = await _venomConnect.checkAuth();
         if (auth) await getAddress(_venomConnect);
     };
-    // Method for getting a standalone provider from venomConnect instance
+
     const initStandalone = async () => {
         const standalone = await venomConnect.getStandalone();
         setStandAloneProvider(standalone);
     };
-    // Handling click of login button. We need to call connect method of out VenomConnect instance, this action will call other connect handlers
+
     const onLogin = async () => {
         if (!venomConnect) return;
         await venomConnect.connect();
     };
-    // This handler will be called after venomConnect.login() action
-    // connect method returns provider to interact with wallet, so we just store it in state
+
     const onConnect = async (provider) => {
         setVenomProvider(provider);
         await onProviderReady(provider);
     };
 
-    // When our provider is ready, we need to get address and balance from.
     const onProviderReady = async (provider) => {
         const venomWalletAddress = provider ? await getAddress(provider) : "";
         setAddress(venomWalletAddress);
     };
 
-    const uploadImage = () => {};
+    // Collection
+    useEffect(() => {
+        if (standaloneProvider) loadNFTs(standaloneProvider);
+    }, [standaloneProvider]);
 
-    const mint = () => {};
+    const getNftCodeHash = async (provider) => {
+        const col_address = new Address(config.collectionAddress);
+        const contract = new provider.Contract(collectionAbi, col_address);
+        const { codeHash } = await contract.methods
+            .nftCodeHash({ answerId: 0 })
+            .call({ responsible: true });
+        // eslint-disable-next-line no-undef
+        return BigInt(codeHash).toString(16);
+    };
+
+    const getNftAddresses = async (codeHash) => {
+        const addresses = await standaloneProvider.getAccountsByCodeHash({
+            codeHash,
+        });
+        return addresses.accounts;
+    };
+
+    const loadNFTs = async (provider) => {
+        try {
+            const nftCodeHash = await getNftCodeHash(provider);
+            if (!nftCodeHash) {
+                return;
+            }
+            const nftAddresses = await getNftAddresses(nftCodeHash);
+            if (!nftAddresses || !nftAddresses.length) {
+                return;
+            }
+            const nftURLs = await getCollectionItems(provider, nftAddresses);
+            setCollectionItem(nftURLs);
+            console.log(nftURLs);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    // Action
+    const handleImgChange = async (event) => {
+        if (selectedFile) {
+            setSeletedFile(null);
+        }
+        const newImage = event.target?.files?.[0];
+        if (newImage) {
+            try {
+                setSeletedFile(newImage);
+            } catch (err) {
+                console.log(err);
+            }
+        }
+    };
+
+    const mint = async () => {
+        try {
+            setLoading(true);
+            if (!selectedFile) {
+                alert("please select image");
+                setLoading(false);
+                return;
+            }
+            const formData = new FormData();
+            formData.append("file", selectedFile);
+            const resFile = await axios({
+                method: "post",
+                url: "https://api.pinata.cloud/pinning/pinFileToIPFS",
+                data: formData,
+                headers: {
+                    pinata_api_key: config.key,
+                    pinata_secret_api_key: config.secret_key,
+                    "Content-Type": "multipart/form-data",
+                },
+            });
+            const ImgHash = `https://ipfs.io/ipfs/${resFile.data.IpfsHash}`;
+            const col_address = new Address(config.collectionAddress);
+            if (!standaloneProvider) {
+                setLoading(false);
+                return;
+            }
+            const contract = new standaloneProvider.Contract(
+                collectionAbi,
+                col_address
+            );
+            const { count } = await contract.methods
+                .totalSupply({ answerId: 0 })
+                .call();
+            const nft_modal = {
+                type: "Test NFT",
+                name: `Test #${1 + count}`,
+                description:
+                    "No Profile NFT is committe  d to fostering equality through PFP (Profile Picture) NFTs, all sharing a consistent color tone and style. Powered by the Venom Blockchain, No Profile NFTs are the future of digital art.",
+                preview: {
+                    source: ImgHash,
+                    mimetype: "image/gif",
+                },
+                files: [
+                    {
+                        source: "",
+                        mimetype: "metadata/json",
+                    },
+                ],
+                attributes: [],
+                external_url: "https://noprofile.xyz",
+            };
+            await contract.methods
+                .mintNft({ json: JSON.stringify(nft_modal) })
+                .send({ from: address, amount: toNano(0.2) });
+            const { nft: nftAddress } = await contract.methods
+                .nftAddress({ answerId: 0, id: count })
+                .call();
+            alert(`Mint Success!!! - ${nftAddress}`);
+            setLoading(false);
+        } catch (err) {
+            console.log(err);
+            alert("Failed Mint");
+            setLoading(false);
+        }
+    };
 
     return (
         <Wrapper>
@@ -115,7 +233,7 @@ function Wallet(props) {
 
             {/* comming soon start here */}
 
-            <div className="comming_soon">
+            {/* <div className="comming_soon">
                 <div className="container">
                     <div className="row">
                         <div className="col-md-12">
@@ -133,7 +251,7 @@ function Wallet(props) {
                         </div>
                     </div>
                 </div>
-            </div>
+            </div> */}
 
             {/* comming soon end here */}
 
@@ -155,15 +273,37 @@ function Wallet(props) {
                                 <p>Upload your photo for No Profile</p>
                             </div>
                             <div className="generate">
-                                <button onClick={uploadImage}>
-                                    Choose File <del>No File chosen</del>
-                                </button>
+                                <div>
+                                    <input
+                                        type="button"
+                                        className="btn-main"
+                                        value={
+                                            selectedFile
+                                                ? selectedFile.name.slice(
+                                                      0,
+                                                      12
+                                                  ) + "..."
+                                                : "Choose File"
+                                        }
+                                    />
+                                    <input
+                                        id="upload_file"
+                                        type="file"
+                                        multiple
+                                        accept="image/*"
+                                        onChange={handleImgChange}
+                                    />
+                                </div>
                             </div>
                             <div className="process">
                                 <h4>Generate procces</h4>
                             </div>
                             <div className="mint_step processMint">
-                                <button onClick={mint}>Mint</button>
+                                {loading ? (
+                                    <button>Minting...</button>
+                                ) : (
+                                    <button onClick={mint}>Mint</button>
+                                )}
                             </div>
                         </div>
                     </div>
