@@ -11,6 +11,7 @@ export const initVenomConnect = async () => {
                 walletWaysToConnect: [
                     {
                         package: ProviderRpcClient,
+
                         packageOptions: {
                             fallback:
                                 VenomConnect.getPromise(
@@ -23,12 +24,12 @@ export const initVenomConnect = async () => {
                             fallback: () =>
                                 EverscaleStandaloneClient.create({
                                     connection: {
-                                        id: 1010,
+                                        id: 1000,
                                         group: "venom_testnet",
                                         type: "jrpc",
                                         data: {
                                             endpoint:
-                                                "https://jrpc-testnet.venom.foundation",
+                                                "https://jrpc-testnet.venom.foundation/rpc",
                                         },
                                     },
                                 }),
