@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { VenomConnect } from "venom-connect";
 import { NavHashLink } from "react-router-hash-link";
-import { Address, ProviderRpcClient } from "everscale-inpage-provider";
+import { Address } from "everscale-inpage-provider";
 import { Icon } from "@iconify/react";
 import Wrapper from "./wallet.styled";
 import before from "../images/filter.png";
@@ -53,6 +52,11 @@ function Wallet(props) {
         setStandAloneProvider(standalone);
     };
 
+    const onDisconnect = async () => {
+        venomProvider.disconnect();
+        setAddress(undefined);
+    };
+
     const onLogin = async () => {
         if (!venomConnect) return;
         await venomConnect.connect();
@@ -70,7 +74,7 @@ function Wallet(props) {
 
     // Collection
     useEffect(() => {
-        if (standaloneProvider) loadNFTs(standaloneProvider);
+        // if (standaloneProvider) loadNFTs(standaloneProvider);
     }, [standaloneProvider]);
 
     const getNftCodeHash = async (provider) => {
@@ -126,6 +130,11 @@ function Wallet(props) {
     const mint = async () => {
         try {
             setLoading(true);
+            if (!address) {
+                alert("please connect venom wallet");
+                setLoading(false);
+                return;
+            }
             if (!selectedFile) {
                 alert("please select image");
                 setLoading(false);
@@ -145,11 +154,11 @@ function Wallet(props) {
             });
             const ImgHash = `https://ipfs.io/ipfs/${resFile.data.IpfsHash}`;
             const col_address = new Address(config.collectionAddress);
-            if (!standaloneProvider) {
+            if (!venomProvider) {
                 setLoading(false);
                 return;
             }
-            const contract = new standaloneProvider.Contract(
+            const contract = await new venomProvider.Contract(
                 collectionAbi,
                 col_address
             );
@@ -157,13 +166,14 @@ function Wallet(props) {
                 .totalSupply({ answerId: 0 })
                 .call();
             const nft_modal = {
-                type: "Test NFT",
-                name: `Test #${1 + count}`,
+                type: "Basic NFT",
+                id: count + 1,
+                name: `Test Net #${count + 1}`,
                 description:
-                    "No Profile NFT is committe  d to fostering equality through PFP (Profile Picture) NFTs, all sharing a consistent color tone and style. Powered by the Venom Blockchain, No Profile NFTs are the future of digital art.",
+                    "No Profile NFT is committed to fostering equality through PFP (Profile Picture) NFTs, all sharing a consistent color tone and style. Powered by the Venom Blockchain, No Profile NFTs are the future of digital art.",
                 preview: {
                     source: ImgHash,
-                    mimetype: "image/gif",
+                    mimetype: "image/png",
                 },
                 files: [
                     {
@@ -172,11 +182,12 @@ function Wallet(props) {
                     },
                 ],
                 attributes: [],
-                external_url: "https://noprofile.xyz",
+                external_url: "",
             };
+            const minterAddress = new Address(address.toString());
             await contract.methods
                 .mintNft({ json: JSON.stringify(nft_modal) })
-                .send({ from: address, amount: toNano(0.2) });
+                .send({ from: minterAddress, amount: toNano(0.2) });
             const { nft: nftAddress } = await contract.methods
                 .nftAddress({ answerId: 0, id: count })
                 .call();
@@ -263,13 +274,14 @@ function Wallet(props) {
                         <div className="easy_step processStep">
                             <div className="profile_item">
                                 {address ? (
-                                    styledAddress(address)
+                                    <button onClick={onDisconnect}>
+                                        {styledAddress(address)}
+                                    </button>
                                 ) : (
                                     <button onClick={onLogin}>
                                         Connect Wallet
                                     </button>
                                 )}
-
                                 <p>Upload your photo for No Profile</p>
                             </div>
                             <div className="generate">
@@ -279,10 +291,12 @@ function Wallet(props) {
                                         className="btn-main"
                                         value={
                                             selectedFile
-                                                ? selectedFile.name.slice(
-                                                      0,
-                                                      12
-                                                  ) + "..."
+                                                ? selectedFile.name.length > 12
+                                                    ? selectedFile.name.slice(
+                                                          0,
+                                                          12
+                                                      ) + "..."
+                                                    : selectedFile.name
                                                 : "Choose File"
                                         }
                                     />
