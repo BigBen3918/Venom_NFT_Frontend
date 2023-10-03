@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { NavHashLink } from "react-router-hash-link";
 import { Address } from "everscale-inpage-provider";
@@ -18,12 +18,14 @@ import { toNano } from "../utils";
 function Wallet(props) {
     const { venomConnect } = props;
 
+    const canvasRef = useRef(null);
     const [loading, setLoading] = useState(false);
     const [venomProvider, setVenomProvider] = useState();
     const [standaloneProvider, setStandAloneProvider] = useState();
     const [address, setAddress] = useState();
     const [collectionItems, setCollectionItem] = useState([]);
     const [selectedFile, setSeletedFile] = useState(null);
+    const [image, _setImage] = useState(null);
 
     useEffect(() => {
         var off = null;
@@ -113,18 +115,70 @@ function Wallet(props) {
     };
 
     // Action
+    useEffect(() => {
+        if (image) {
+            const canvas = canvasRef.current;
+            const ctx = canvas?.getContext("2d");
+
+            let img = new Image();
+            img.onload = () => {
+                ctx.drawImage(
+                    img,
+                    0,
+                    0,
+                    img.width / 2,
+                    img.height,
+                    0,
+                    0,
+                    canvas.width / 2,
+                    canvas.height
+                );
+                ctx.filter =
+                    "grayscale(1) invert(0.75) contrast(3) hue-rotate(360deg) saturate(0)";
+                ctx.drawImage(
+                    img,
+                    img.width / 2,
+                    0,
+                    img.width / 2,
+                    img.height,
+                    canvas.width / 2,
+                    0,
+                    canvas.width / 2,
+                    canvas.height
+                );
+                ctx.filter = "none";
+
+                img.remove();
+            };
+            img.src = image;
+        }
+    }, [image]);
+
     const handleImgChange = async (event) => {
-        if (selectedFile) {
+        if (image) {
+            setImage(null);
             setSeletedFile(null);
         }
         const newImage = event.target?.files?.[0];
         if (newImage) {
             try {
+                setImage(URL.createObjectURL(newImage));
                 setSeletedFile(newImage);
             } catch (err) {
                 console.log(err);
             }
         }
+    };
+
+    const cleanup = () => {
+        URL.revokeObjectURL(image);
+    };
+
+    const setImage = (newImage) => {
+        if (image) {
+            cleanup();
+        }
+        _setImage(newImage);
     };
 
     const mint = async () => {
@@ -323,12 +377,16 @@ function Wallet(props) {
                     </div>
                     <div className="col-md-8 col_sm-full">
                         <div className="before_after">
-                            <img
-                                src={before}
-                                className="img-fluid"
-                                alt="before"
-                                loading="lazy"
-                            />
+                            {image ? (
+                                <canvas ref={canvasRef}></canvas>
+                            ) : (
+                                <img
+                                    src={before}
+                                    className="before_image"
+                                    alt="before"
+                                    loading="lazy"
+                                />
+                            )}
                         </div>
                     </div>
                 </div>

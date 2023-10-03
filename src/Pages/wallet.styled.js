@@ -190,6 +190,25 @@ const Wrapper = styled.div`
         border: 1px solid black;
     }
     .before_after img {
+        width: 100%;
+        object-fit: cover;
+    }
+    .before_after canvas {
+        padding: 10px;
+        width: 100%;
+        height: 760px;
+        border-radius: 50%;
+        object-fit: fill;
+    }
+    @media (max-width: 992px) {
+        .before_after canvas {
+            height: 482px;
+        }
+    }
+    @media (max-width: 650px) {
+        .before_after canvas {
+            height: 400px;
+        }
     }
     .process {
     }
